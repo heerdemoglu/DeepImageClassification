@@ -48,6 +48,7 @@ if __name__ == '__main__':
     urllib.request.install_opener(opener)
 
     # Normalization values of dataset from : https://discuss.pytorch.org/t/normalization-in-the-mnist-example/
+    # ToDo: Additional transforms can be added for data augmentation.
     trnsfrm = transforms.Compose([transforms.Resize(256), transforms.CenterCrop(224),
                                   transforms.Grayscale(num_output_channels=3),
                                   transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
@@ -138,6 +139,7 @@ if __name__ == '__main__':
             print(f'Iteration {i}, loss: {torch.tensor(losses).mean():.2f}')
         print(f'Epoch {epoch+1}, training loss: {torch.tensor(losses).mean():.2f}')
 
+        # Todo: Use validation loss to achieve early stopping; LRScheduling etc.
         vlosses = list()
         for j, (vimages, vlabels) in enumerate(val_loader):
             vimages, vlabels = vimages.to(device), vlabels.to(device)
@@ -148,7 +150,7 @@ if __name__ == '__main__':
 
             # Training Logging:
             vlosses.append(vloss.item())
-        print(f'Epoch {epoch + 1}, validation loss: {torch.tensor(vlosses).mean():.2f}')
+        print(f"Epoch {epoch + 1}, validation loss: {torch.tensor(vlosses).mean():.2f}")
 
     end_time = time.time()
     elapsed_time = end_time - start_time
