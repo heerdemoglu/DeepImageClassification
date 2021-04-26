@@ -6,8 +6,6 @@
 import os
 import time
 
-import numpy as np
-import torchvision.utils
 from matplotlib import pyplot as plt
 from six.moves import urllib
 
@@ -67,6 +65,13 @@ if __name__ == '__main__':
     print("Number of Samples in Validation Dataset: ", len(val))
     print("Number of Samples in Testing Dataset: ", len(test))
 
+    # Model loading & Visualization: (All models are set to pretrained = False for the assignment's requirements.)
+    vgg = [models.vgg11(pretrained=False), models.vgg11_bn(pretrained=False),
+           models.vgg13(pretrained=False), models.vgg13_bn(pretrained=False),
+           models.vgg16(pretrained=False), models.vgg16_bn(pretrained=False),
+           models.vgg19(pretrained=False), models.vgg19_bn(pretrained=False)
+           ]
+
     # Create Tensorboard Log: - Holds all the example images, histories and network architectures.
     writer = SummaryWriter(os.path.join(save_dir, 'runs/vgg11'))
     images, labels = next(iter(train_loader))
@@ -87,13 +92,6 @@ if __name__ == '__main__':
 
     # Log images to tensorboard:
     writer.add_figure('input_images', fig, 0)
-
-    # Model loading & Visualization: (All models are set to pretrained = False for the assignment's requirements.)
-    vgg = [models.vgg11(pretrained=False), models.vgg11_bn(pretrained=False),
-           models.vgg13(pretrained=False), models.vgg13_bn(pretrained=False),
-           models.vgg16(pretrained=False), models.vgg16_bn(pretrained=False),
-           models.vgg19(pretrained=False), models.vgg19_bn(pretrained=False)
-           ]
 
     # Visualize one of the models - VGG-16 with Batch Normalization "vgg16_bn":
     # print(vgg[0])
@@ -142,7 +140,7 @@ if __name__ == '__main__':
 
         vlosses = list()
         for j, (vimages, vlabels) in enumerate(val_loader):
-            vimages, vlabels = images.to(device), labels.to(device)
+            vimages, vlabels = vimages.to(device), vlabels.to(device)
             with torch.no_grad():
                 voutputs = model(vimages)  # forward pass
             vloss = loss_criterion(voutputs, vlabels)  # compute loss
@@ -157,4 +155,15 @@ if __name__ == '__main__':
     print('Training Time Elapsed: ', str(elapsed_time))
     writer.close()
 
-    # Todo: Testing procedure and logging to tensorboard
+    # Todo: logging to tensorboard
+    # Testing Procedure:
+    correct = 0
+    total = 0
+    for j, (vimages, vlabels) in enumerate(test_loader):
+        vimages, vlabels = vimages.to(device), vlabels.to(device)
+        with torch.no_grad():
+            voutputs = model(vimages)  # forward pass
+        _, predicted = torch.max(voutputs.data, 1)
+        total += labels.size(0)
+        correct += (predicted == vlabels).sum().item()
+    print(correct / total * 100)
