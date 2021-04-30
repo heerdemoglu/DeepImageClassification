@@ -4,9 +4,11 @@
 # Constructs a VGG model using PyTorch's implementation without any pretraining.
 # **********************************************************************************************************************
 import os
+import time
 import urllib
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from torch.utils.data import random_split, DataLoader
@@ -14,9 +16,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets, models
 from torchvision.transforms import transforms
 from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix
+import seaborn as sn
 
 
-#  ToDo: Method documentation to be implemented:
 def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, output_channels):
     print('Loading the dataset.')
     # Load the training and testing datasets: (Apply normalization and build to tensors as well)
@@ -47,7 +50,7 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
         # print("Number of Samples in Validation Dataset: ", len(val))
         # print("Number of Samples in Testing Dataset: ", len(test))
 
-        return train_loader, val_loader, test_loader
+        return train_loader, val_loader, test_loader, train, val, test
     # ToDo: Implement CIFAR100 Data loading procedure:
     if dataset_name == 'cifar100':
         pass
@@ -55,7 +58,6 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
         raise ValueError('Dataset must be mnist or cifar100')
 
 
-#  ToDo: Method documentation to be implemented:
 def load_model_template(dataset_name, num_of_classes, cuda_device=None):
     print('Loading model template.')
     if dataset_name == 'vgg11':
@@ -97,7 +99,6 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         raise ValueError('The model name provided is not supported in this assignment.')
 
 
-#  ToDo: Method documentation to be implemented:
 def show_images(data_loader):
     print('Saved input image samples to tensorboard.')
     # Get the images and respective labels:
@@ -114,13 +115,29 @@ def show_images(data_loader):
     return fig
 
 
-# ToDo: Method documentation to be implemented:
-# ToDo: Implement the method.
-def show_output_images(model, data_loader):
-    pass
+def show_model_examples(image, corr_idx, false_idx, act_label, pred_label):
+    print('Saved output image samples to tensorboard.')
+
+    # Construct the images: - Print as figure:
+    # Create the subplot:
+    fig, axs = plt.subplots(4, 4)
+    fig.suptitle("Correctly and Incorrectly Classified Images")
+
+    i = 0
+    for ax in axs.flat:
+        if i <= 7:
+            ax.imshow(image[corr_idx[i]], cmap='gray')
+            ax.set_title(f'Actual: {act_label[corr_idx[i]]}, Predicted: {pred_label[corr_idx[i]]}', c='g').set_fontsize(
+                '6')  # set title for each subplot
+            i += 1
+        else:
+            ax.imshow(image[false_idx[i]], cmap='gray')
+            title = f'Actual: {act_label[false_idx[i]]}, Predicted: {pred_label[false_idx[i]]}'
+            ax.set_title(title, c='r').set_fontsize('6')  # set title for each subplot
+            i += 1
+    return fig
 
 
-#  ToDo: Method documentation to be implemented:
 def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, validation_loader,
                 model_save_path, cuda_device=None):
     print('Starting training procedure.')
@@ -142,15 +159,17 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
             outputs = model(images)  # forward pass
 
             # Make the predictions on the batch:
-            _, preds = torch.max(outputs, 1)                     # Pull the predictions.
-            model_loss = criterion(outputs, labels)              # Compute training loss.
+            _, preds = torch.max(outputs, 1)  # Pull the predictions.
+            model_loss = criterion(outputs, labels)  # Compute training loss.
 
-            model_loss.backward()                                # Execute backpropagation.
-            optimizer.step()                                     # Step in opposite direction to gradient.
+            model_loss.backward()  # Execute backpropagation.
+            optimizer.step()  # Step in opposite direction to gradient.
 
-            ep_loss_run += model_loss.item() * outputs.shape[0]  # Accumulate the epoch loss (avg with batch size).
-            epoch_correct += (preds == labels).sum().item()      # Accumulate number of correct class. each batch.
-            total_samples += outputs.size(0)                     # Count number of samples seen so far.
+            # Detach to avoid logging the entire gradient.
+            ep_loss_run += model_loss.detach().item() * outputs.shape[
+                0]  # Accumulate the epoch loss (avg with batch size).
+            epoch_correct += (preds == labels).detach().sum().item()  # Accumulate number of correct class. each batch.
+            total_samples += outputs.detach().size(0)  # Count number of samples seen so far.
 
             # Training Statistics & Logging: ***********************************************************************
             # At each batch record the data (both in terminal and tensorboard):
@@ -165,6 +184,12 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
                 sum_writer.add_scalar('trn_acc', (epoch_correct / total_samples),
                                       epoch * outputs.shape[0] + idx + 1)
             # ******************************************************************************************************
+            # Detach and remove training and validation datasets from memory.
+            images.detach()
+            del images
+            labels.detach()
+            del labels
+
         # Report everything at the end of each epoch: **************************************************************
         epoch_loss = ep_loss_run / total_samples
         epoch_acc = epoch_correct / total_samples
@@ -180,8 +205,6 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
         validate_model(model, validation_loader, epochs, criterion, optimizer, sum_writer, model_save_path, cuda_device)
 
 
-# ToDo: Method documentation to be implemented:
-# ToDo: Add LRScheduler, Early Stopping, Log which epoch was the best.
 def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer, model_save_path, cuda_device=None):
     print('Starting validation procedure.')
     min_valid_loss = np.inf
@@ -203,12 +226,13 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer,
             outputs = model(images)  # forward pass
 
             # Make the predictions on the batch:
-            _, preds = torch.max(outputs, 1)                     # Pull the predictions.
-            model_loss = criterion(outputs, labels)              # Compute training loss.
+            _, preds = torch.max(outputs, 1)  # Pull the predictions.
+            model_loss = criterion(outputs, labels)  # Compute training loss.
 
-            ep_loss_run += model_loss.item() * outputs.shape[0]  # Accumulate the epoch loss (avg with batch size).
-            epoch_correct += (preds == labels).sum().item()      # Accumulate number of correct class. each batch.
-            total_samples += outputs.size(0)                     # Count number of samples seen so far.
+            ep_loss_run += model_loss.detach().item() * outputs.shape[
+                0]  # Accumulate the epoch loss (avg with batch size).
+            epoch_correct += (preds == labels).detach().sum().item()  # Accumulate number of correct class. each batch.
+            total_samples += outputs.detach().size(0)  # Count number of samples seen so far.
 
             # Training Statistics & Logging: ***********************************************************************
             # At each batch record the data (both in terminal and tensorboard):
@@ -223,6 +247,12 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer,
                 sum_writer.add_scalar('val_acc', (epoch_correct / total_samples),
                                       epoch * outputs.shape[0] + idx + 1)
             # ******************************************************************************************************
+            # Detach and remove training and validation datasets from memory.
+            images.detach()
+            del images
+            labels.detach()
+            del labels
+
         # Report everything at the end of each epoch: **************************************************************
         epoch_loss = ep_loss_run / total_samples
         epoch_acc = epoch_correct / total_samples
@@ -243,7 +273,6 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer,
         # **********************************************************************************************************
 
 
-# ToDo: Method documentation to be implemented:
 def test_model(model, test_loader, criterion, optimizer, sum_writer, cuda_device=None):
     print('Starting testing procedure.')
     # Assume that the best model is already loaded.
@@ -252,7 +281,8 @@ def test_model(model, test_loader, criterion, optimizer, sum_writer, cuda_device
     ep_loss_run = 0.0
     epoch_correct = 0
     total_samples = 0
-
+    lbls_list = []
+    prds_list = []
     for idx, (images, labels) in enumerate(test_loader):
         # Send images and labels to GPU:
         if cuda_device is not None:
@@ -267,9 +297,19 @@ def test_model(model, test_loader, criterion, optimizer, sum_writer, cuda_device
         _, preds = torch.max(outputs, 1)  # Pull the predictions.
         model_loss = criterion(outputs, labels)  # Compute training loss.
 
-        ep_loss_run += model_loss.item() * outputs.shape[0]  # Accumulate the epoch loss (avg with batch size).
-        epoch_correct += (preds == labels).sum().item()  # Accumulate number of correct class. each batch.
-        total_samples += outputs.size(0)  # Count number of samples seen so far.
+        # Store the labels and the predictions:
+        lbls_list.append(labels.detach().cpu().numpy())
+        prds_list.append(preds.detach().cpu().numpy())
+
+        ep_loss_run += model_loss.detach().item() * outputs.shape[0]  # Accumulate the epoch loss (avg with batch size).
+        epoch_correct += (preds == labels).detach().sum().item()  # Accumulate number of correct class. each batch.
+        total_samples += outputs.detach().size(0)  # Count number of samples seen so far.
+
+        # Detach and remove training and validation datasets from memory.
+        images.detach()
+        del images
+        labels.detach()
+        del labels
 
     # Report everything after passing through all the batches:
     epoch_loss = ep_loss_run / total_samples
@@ -281,6 +321,16 @@ def test_model(model, test_loader, criterion, optimizer, sum_writer, cuda_device
     sum_writer.add_text('test_loss', f'Test Dataset Loss: {epoch_loss:.4f}', 0)
     sum_writer.add_text('test_accuracy', f'Test Dataset Accuracy: {epoch_acc:.4f}', 0)
     # **********************************************************************************************************
+    return lbls_list, prds_list
+
+
+# Showing closed figure: (IPYNB Supporting Implementation - For Debugging.)
+# Taken from: https://stackoverflow.com/questions/31729948/matplotlib-how-to-show-a-figure-that-has-been-closed
+def show_figure(fig):
+    dummy = plt.figure()
+    new_manager = dummy.canvas.manager
+    new_manager.canvas.figure = fig
+    fig.set_canvas(new_manager.canvas)
 
 
 if __name__ == '__main__':
@@ -288,23 +338,37 @@ if __name__ == '__main__':
     DATASET = ['mnist', 'cifar100']
     MODELS = ['vgg11', 'vgg11_bn', 'vgg_19', 'vgg19_bn', 'resnet18', 'resnet152', 'googlenet']
 
+    classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')  # for mnist
+
     # Model training parameters: ***************************************************************************************
-    EPOCHS = 2
-    BATCH_SIZE = 100
+    EPOCHS = 1
+    BATCH_SIZE = 150
     LR = 0.0001
     MOMENTUM = 0.9
+    NUM_CLASSES = 10
     # ******************************************************************************************************************
 
-    # Select the dataset and the model to train:
+    # Select the dataset and the model to train: ***********************************************************************
     selected_dataset = DATASET[0]
-    selected_model = MODELS[0]
+    selected_model = MODELS[3]
+    # ******************************************************************************************************************
 
     # Directory Variables: (Created using the selected parameters above)
     data_dir = os.path.join('datasets', selected_dataset)
-    trn_dir = os.path.join(data_dir, 'train')
-    tst_dir = os.path.join(data_dir, 'test')
-    save_dir = os.path.join('.\\reporting', selected_model, selected_dataset)
-    model_save_dir = os.path.join(save_dir, selected_model + '.pth')
+    trn_dir = os.path.join(data_dir, 'train')  # created automatically
+    tst_dir = os.path.join(data_dir, 'test')  # created automatically
+
+    save_dir = os.path.join('reporting', selected_model, selected_dataset)
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    model_save_dir = os.path.join(save_dir, selected_model)
+    if not os.path.exists(model_save_dir):
+        os.makedirs(model_save_dir)
+
+    # Best model's save path.
+    model_save = os.path.join(save_dir, selected_model + '.pth')
 
     # Create tensorboard writer:
     writer = SummaryWriter(os.path.join(save_dir, os.path.join('runs', selected_model)))
@@ -313,8 +377,8 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Create the dataset:
-    tr_loader, vl_loader, tst_loader = load_dataset(selected_dataset, 224, trn_dir, tst_dir, BATCH_SIZE, 3)
-    demo_loader, _, _ = load_dataset(selected_dataset, 224, trn_dir, tst_dir, 16, 3)
+    tr_loader, vl_loader, tst_loader, _, _, _ = load_dataset(selected_dataset, 224, trn_dir, tst_dir, BATCH_SIZE, 3)
+    demo_loader, _, _, _, _, _ = load_dataset(selected_dataset, 224, trn_dir, tst_dir, 16, 3)
 
     # Show some example input image-label pairs:
     input_fig = show_images(demo_loader)
@@ -322,25 +386,66 @@ if __name__ == '__main__':
     del demo_loader  # Remove memory
 
     # Create the model:
-    my_model = load_model_template(selected_model, 10, device)
-
-    ims, _ = next(iter(tr_loader))  # Provide temporary images.
-    writer.add_graph(my_model, ims.to(device))      # Add the model to tensorboard.
-    del ims
+    my_model = load_model_template(selected_model, NUM_CLASSES, device)
 
     # Model hyperparameters:
     loss_criterion = nn.CrossEntropyLoss()  # create the loss criterion and the optimizer
     model_optm = torch.optim.SGD(my_model.parameters(), lr=LR, momentum=MOMENTUM)
 
+    ims, _ = next(iter(tr_loader))  # Provide temporary images.
+    writer.add_graph(my_model, ims.to(device))  # Add the model to tensorboard.
+    del ims
+
     # Train the model:
+    start = time.time()
     train_model(my_model, tr_loader, EPOCHS, loss_criterion, model_optm, writer, vl_loader,
-                model_save_dir, device)
+                model_save, device)
+    end = time.time()
+    elapsed = end - start
+
+    writer.add_text('training_elapsed', f'Training is done in {str(elapsed)} seconds', 0)
+
+    # Reload the best model:
+    my_model.load_state_dict(torch.load(model_save))
 
     # Test the model:
-    test_model(my_model, tst_loader, loss_criterion, model_optm, writer, device)
+    labels_list, preds_list = test_model(my_model, tst_loader, loss_criterion, model_optm, writer, device)
+    labels_list = np.concatenate(labels_list)
+    preds_list = np.concatenate(preds_list)
 
-    # # ToDo: Show some example output/prediction image-label pairs:
+    # Outputs the same data loader as we down shuffle:
+    _, _, _, _, _, tst = load_dataset(selected_dataset, 224, trn_dir, tst_dir, 1, 3)
 
-    # # ToDo: Confusion Matrix:
+    # Correct an False indices boolean array: (already ordered)
+    # Pick 8 random choices from correct and incorrect samples:
+    mask = labels_list == preds_list
+    idx_corr = np.asarray(np.where(mask))[0]
+    corr_picked = np.random.choice(idx_corr, 8)
+
+    idx_false = np.asarray(np.where(~mask))[0]
+    false_picked = np.random.choice(idx_false, 8)
+
+    # Associate images with the indices and print them in a grid:
+    o_fig = show_model_examples(tst.data.numpy(), idx_corr, idx_false, labels_list, preds_list)
+
+    # Save in tensorboard:
+    show_figure(o_fig)
+    o_fig.show()
+    writer.add_figure('output_images', o_fig, 0)
+
+    # Confusion Matrix:
+    cf_matrix = confusion_matrix(labels_list, preds_list)
+
+    # print(cf_matrix)
+
+    df_cm = pd.DataFrame(cf_matrix / np.sum(cf_matrix, 0), index=[i for i in classes],
+                         columns=[i for i in classes])
+    cm_fig = plt.figure(figsize=(12, 7))
+    cm_fig.suptitle('Confusion Matrix')
+    sn.heatmap(df_cm, annot=True, cmap='flare')
+    writer.add_figure('test_confusion', cm_fig, 0)
+
+    show_figure(cm_fig)
+    cm_fig.show()
 
     writer.close()
