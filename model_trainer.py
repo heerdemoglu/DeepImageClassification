@@ -28,7 +28,6 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
     opener.addheaders = [('User-agent', 'Mozilla/5.0')]
     urllib.request.install_opener(opener)
 
-    # Implement CIFAR100 Data loading procedure:
     if dataset_name == 'mnist':
         # Normalization values of dataset from : https://discuss.pytorch.org/t/normalization-in-the-mnist-example/
         # Additional transforms can be added for data augmentation; Such as rotation:
@@ -51,18 +50,32 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
         # print("Number of Samples in Testing Dataset: ", len(test))
 
         return train_loader, val_loader, test_loader, train, val, test
-    # ToDo: Implement CIFAR100 Data loading procedure:
-    if dataset_name == 'cifar100':
-        pass
+    if dataset_name == 'cifar10':
+        # Normalization values of dataset from : https://github.com/kuangliu/pytorch-cifar/issues/19
+        # Additional transforms can be added for data augmentation; Such as rotation:
+        trnsfrm = transforms.Compose([transforms.Resize(256), transforms.CenterCrop(image_scale),
+                                      transforms.RandomRotation(15),
+                                      transforms.Grayscale(num_output_channels=output_channels),
+                                      transforms.ToTensor(),
+                                      transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
+        train_data = datasets.CIFAR10(root=trn_direc, train=True, download=True, transform=trnsfrm)
+        train, val = random_split(train_data, [45000, 5000])
+        test = datasets.CIFAR10(root=tst_direc, train=False, download=True, transform=trnsfrm)
+
+        # Construct the loaders:
+        train_loader = DataLoader(dataset=train, batch_size=batch_size, shuffle=False)  # Training Loader
+        val_loader = DataLoader(dataset=val, batch_size=batch_size, shuffle=False)  # Validation Loader
+        test_loader = DataLoader(dataset=test, batch_size=batch_size, shuffle=False)  # Testing Loader
+        return train_loader, val_loader, test_loader, train, val, test
     else:
-        raise ValueError('Dataset must be mnist or cifar100')
+        raise ValueError('Dataset must be mnist or cifar10')
 
-
+# Implement ResNet and GoogLeNet models
 def load_model_template(dataset_name, num_of_classes, cuda_device=None):
     print('Loading model template.')
     if dataset_name == 'vgg11':
         model = models.vgg11(pretrained=False)
-        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes in mnist
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
@@ -70,23 +83,39 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         return model
     if dataset_name == 'vgg11_bn':
         model = models.vgg11_bn(pretrained=False)
-        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes in mnist
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+    if dataset_name == 'vgg16':
+        model = models.vgg16(pretrained=False)
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+    if dataset_name == 'vgg16_bn':
+        model = models.vgg16_bn(pretrained=False)
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
             model.to(cuda_device)
         return model
     if dataset_name == 'vgg19':
-        model = models.vgg11(pretrained=False)
-        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes in mnist
+        model = models.vgg19(pretrained=False)
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
             model.to(cuda_device)
         return model
     if dataset_name == 'vgg19_bn':
-        model = models.vgg11_bn(pretrained=False)
-        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes in mnist
+        model = models.vgg19_bn(pretrained=False)
+        model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
@@ -342,7 +371,7 @@ if __name__ == '__main__':
 
     # Model training parameters: ***************************************************************************************
     EPOCHS = 1
-    BATCH_SIZE = 150
+    BATCH_SIZE = 4
     LR = 0.0001
     MOMENTUM = 0.9
     NUM_CLASSES = 10
@@ -358,7 +387,7 @@ if __name__ == '__main__':
     trn_dir = os.path.join(data_dir, 'train')  # created automatically
     tst_dir = os.path.join(data_dir, 'test')  # created automatically
 
-    save_dir = os.path.join('reporting', selected_model, selected_dataset)
+    save_dir = os.path.join('reporting', selected_dataset, selected_model)
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
