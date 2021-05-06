@@ -70,6 +70,7 @@ def load_dataset(model_name, image_scale, trn_direc, tst_direc, batch_size, outp
     else:
         raise ValueError('Dataset must be mnist or cifar10')
 
+
 # Implement ResNet and GoogLeNet models
 def load_model_template(model_name, num_of_classes, cuda_device=None):
     print('Loading model template.')
@@ -149,18 +150,14 @@ def load_model_template(model_name, num_of_classes, cuda_device=None):
             model.to(cuda_device)
         return model
 
-    if model_name == 'resnet152':
-        model = models.resnet152(pretrained=False)
+    if model_name == 'googlenet':
+        model = models.googlenet(pretrained=False)
         model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-
-    if model_name == 'googlenet':
-        model = models.googlenet(pretrained=False)
-        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
 
     # ToDo: Implement your own model.
     if model_name == 'emrenet':
