@@ -125,7 +125,7 @@ def load_model_template(model_name, num_of_classes, cuda_device=None):
 
     if model_name == 'resnet18':
         model = models.resnet18(pretrained=False)
-        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+        model.fc = nn.Linear(512, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
@@ -134,7 +134,7 @@ def load_model_template(model_name, num_of_classes, cuda_device=None):
 
     if model_name == 'resnet50':
         model = models.resnet50(pretrained=False)
-        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+        model.fc = nn.Linear(512, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
@@ -143,7 +143,7 @@ def load_model_template(model_name, num_of_classes, cuda_device=None):
 
     if model_name == 'resnet152':
         model = models.resnet152(pretrained=False)
-        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+        model.fc = nn.Linear(512, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
@@ -152,7 +152,7 @@ def load_model_template(model_name, num_of_classes, cuda_device=None):
 
     if model_name == 'googlenet':
         model = models.googlenet(pretrained=False)
-        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+        model.fc = nn.Linear(1024, num_of_classes)  # set to number of classes
 
         # Send to Cuda if GPU is used.
         if cuda_device is not None:
