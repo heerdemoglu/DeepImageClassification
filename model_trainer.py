@@ -20,7 +20,7 @@ from sklearn.metrics import confusion_matrix
 import seaborn as sn
 
 
-def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, output_channels):
+def load_dataset(model_name, image_scale, trn_direc, tst_direc, batch_size, output_channels):
     print('Loading the dataset.')
     # Load the training and testing datasets: (Apply normalization and build to tensors as well)
     # Added to circumvent Cloudflare protection bug, following from: https://github.com/pytorch/vision/issues/1938
@@ -28,7 +28,7 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
     opener.addheaders = [('User-agent', 'Mozilla/5.0')]
     urllib.request.install_opener(opener)
 
-    if dataset_name == 'mnist':
+    if model_name == 'mnist':
         # Normalization values of dataset from : https://discuss.pytorch.org/t/normalization-in-the-mnist-example/
         # Additional transforms can be added for data augmentation; Such as rotation:
         trnsfrm = transforms.Compose([transforms.Resize(256), transforms.CenterCrop(image_scale),
@@ -50,11 +50,11 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
         # print("Number of Samples in Testing Dataset: ", len(test))
 
         return train_loader, val_loader, test_loader, train, val, test
-    if dataset_name == 'cifar10':
+    if model_name == 'cifar10':
         # Normalization values of dataset from : https://github.com/kuangliu/pytorch-cifar/issues/19
         # Additional transforms can be added for data augmentation; Such as rotation:
         trnsfrm = transforms.Compose([transforms.Resize(256), transforms.CenterCrop(image_scale),
-                                      transforms.RandomRotation(15),
+                                      transforms.RandomRotation(15), transforms.RandomVerticalFlip(p=0.5),
                                       transforms.Grayscale(num_output_channels=output_channels),
                                       transforms.ToTensor(),
                                       transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
@@ -71,9 +71,9 @@ def load_dataset(dataset_name, image_scale, trn_direc, tst_direc, batch_size, ou
         raise ValueError('Dataset must be mnist or cifar10')
 
 # Implement ResNet and GoogLeNet models
-def load_model_template(dataset_name, num_of_classes, cuda_device=None):
+def load_model_template(model_name, num_of_classes, cuda_device=None):
     print('Loading model template.')
-    if dataset_name == 'vgg11':
+    if model_name == 'vgg11':
         model = models.vgg11(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -81,7 +81,7 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    if dataset_name == 'vgg11_bn':
+    if model_name == 'vgg11_bn':
         model = models.vgg11_bn(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -89,7 +89,7 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    if dataset_name == 'vgg16':
+    if model_name == 'vgg16':
         model = models.vgg16(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -97,7 +97,7 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    if dataset_name == 'vgg16_bn':
+    if model_name == 'vgg16_bn':
         model = models.vgg16_bn(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -105,7 +105,7 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    if dataset_name == 'vgg19':
+    if model_name == 'vgg19':
         model = models.vgg19(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -113,7 +113,7 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    if dataset_name == 'vgg19_bn':
+    if model_name == 'vgg19_bn':
         model = models.vgg19_bn(pretrained=False)
         model.classifier[6] = nn.Linear(4096, num_of_classes)  # set to number of classes
 
@@ -121,9 +121,50 @@ def load_model_template(dataset_name, num_of_classes, cuda_device=None):
         if cuda_device is not None:
             model.to(cuda_device)
         return model
-    # ToDo: Implement ResNet models:
-    # ToDo: Implement GoogLeNet models:
 
+    if model_name == 'resnet18':
+        model = models.resnet18(pretrained=False)
+        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+
+    if model_name == 'resnet50':
+        model = models.resnet50(pretrained=False)
+        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+
+    if model_name == 'resnet152':
+        model = models.resnet152(pretrained=False)
+        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+
+    if model_name == 'resnet152':
+        model = models.resnet152(pretrained=False)
+        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+        # Send to Cuda if GPU is used.
+        if cuda_device is not None:
+            model.to(cuda_device)
+        return model
+
+    if model_name == 'googlenet':
+        model = models.googlenet(pretrained=False)
+        model.fc = nn.Linear(4096, num_of_classes)  # set to number of classes
+
+    # ToDo: Implement your own model.
+    if model_name == 'emrenet':
+        raise NotImplementedError()
     else:
         raise ValueError('The model name provided is not supported in this assignment.')
 
