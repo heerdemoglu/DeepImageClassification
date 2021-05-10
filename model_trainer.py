@@ -7,6 +7,7 @@ import os
 import time
 import urllib
 
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import torch
@@ -55,7 +56,6 @@ def load_dataset(model_name, image_scale, trn_direc, tst_direc, batch_size, outp
         # Additional transforms can be added for data augmentation; Such as rotation:
         trnsfrm = transforms.Compose([transforms.Resize(256), transforms.CenterCrop(image_scale),
                                       transforms.RandomRotation(15), transforms.RandomVerticalFlip(p=0.5),
-                                      transforms.Grayscale(num_output_channels=output_channels),
                                       transforms.ToTensor(),
                                       transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))])
         train_data = datasets.CIFAR10(root=trn_direc, train=True, download=True, transform=trnsfrm)
@@ -71,7 +71,6 @@ def load_dataset(model_name, image_scale, trn_direc, tst_direc, batch_size, outp
         raise ValueError('Dataset must be mnist or cifar10')
 
 
-# Implement ResNet and GoogLeNet models
 def load_model_template(model_name, num_of_classes, cuda_device=None):
     print('Loading model template.')
     if model_name == 'vgg11':
@@ -208,6 +207,7 @@ def show_model_examples(image, corr_idx, false_idx, act_label, pred_label):
 def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, validation_loader,
                 model_save_path, cuda_device=None):
     print('Starting training procedure.')
+    min_valid_loss = np.inf
     # Iterate over given number of epochs:
     for epoch in range(epochs):
         model.train()
@@ -262,19 +262,22 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
         epoch_acc = epoch_correct / total_samples
 
         # Write end of epoch results & Log this to tensorboard:
+        timestamp = datetime.timestamp(datetime.now())
+        print("Current Date & Time: ", timestamp, '\n')
         print(f'Epoch [{epoch + 1}/{epochs}], Epoch Training Loss: {epoch_loss:.4f},'
-              f'Epoch Training Accuracy: {epoch_acc:.4f}')
+              f'Epoch Training Accuracy: {epoch_acc:.4f} \n')
         sum_writer.add_scalar('epoch_trn_loss', epoch_loss, epoch + 1)
         sum_writer.add_scalar('epoch_trn_acc', epoch_acc, epoch + 1)
         # **********************************************************************************************************
 
         # Try validation set at the end of each epoch:
-        validate_model(model, validation_loader, epochs, criterion, optimizer, sum_writer, model_save_path, cuda_device)
+        validate_model(model, validation_loader, epochs, criterion, optimizer, min_valid_loss, sum_writer,
+                       model_save_path, cuda_device)
 
 
-def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer, model_save_path, cuda_device=None):
+def validate_model(model, data_loader, epochs, criterion, optimizer, min_valid_loss, sum_writer,
+                   model_save_path, cuda_device=None):
     print('Starting validation procedure.')
-    min_valid_loss = np.inf
     # Iterate over given number of epochs:
     for epoch in range(epochs):
         model.eval()
@@ -304,10 +307,12 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, sum_writer,
             # Training Statistics & Logging: ***********************************************************************
             # At each batch record the data (both in terminal and tensorboard):
             if (idx + 1) % outputs.shape[0] == 0:
-                print(f'Epoch [{epoch + 1} / {epochs}], '
+                timestamp = datetime.timestamp(datetime.now())
+                print("Current Date & Time: ", timestamp, '\n')
+                print(f'Epoch [{epoch + 1}/{epochs}], '
                       f'Step: [{idx + 1}/{len(data_loader)}], '
                       f'Validation Loss: {model_loss.item():.4f}, '
-                      f'Validation Accuracy: {(epoch_correct / total_samples):.4f}'
+                      f'Validation Accuracy: {(epoch_correct / total_samples):.4f} \n'
                       )
                 sum_writer.add_scalar('val_loss', ep_loss_run / total_samples,
                                       epoch * outputs.shape[0] + idx + 1)
@@ -405,7 +410,9 @@ if __name__ == '__main__':
     DATASET = ['mnist', 'cifar100']
     MODELS = ['vgg11', 'vgg11_bn', 'vgg_19', 'vgg19_bn', 'resnet18', 'resnet152', 'googlenet']
 
-    classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')  # for mnist
+    # classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')  # for mnist
+    classes = ('plane', 'car', 'bird', 'cat',
+               'deer', 'dog', 'frog', 'horse', 'ship', 'truck')  # for cifar
 
     # Model training parameters: ***************************************************************************************
     EPOCHS = 1
@@ -439,6 +446,17 @@ if __name__ == '__main__':
 
     # Create tensorboard writer:
     writer = SummaryWriter(os.path.join(save_dir, os.path.join('runs', selected_model)))
+
+    # Log Timestamp of start, batch size, learning rate, epochs, momentum:
+    timestamp = datetime.timestamp(datetime.now())
+    print("Current Date & Time: ", timestamp, '\n')
+    writer.add_text('start_time', f'Code started on  {timestamp}.', 0)
+    writer.add_text('number_of_epochs', f'Total of {str(EPOCHS)} will be trained', 0)
+    writer.add_text('batch_size', f'Batch size is {str(BATCH_SIZE)}.', 0)
+    writer.add_text('learning_rate', f'Learning rate is {str(LR)}.', 0)
+    writer.add_text('batch_size', f'Momentum is {str(MOMENTUM)}.', 0)
+    writer.add_text('sel_dataset', f'Selected Dataset is {selected_dataset}.', 0)
+    writer.add_text('sel_model', f'Selected Model is {selected_model}.', 0)
 
     # Create the device which the training will take place:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -476,7 +494,13 @@ if __name__ == '__main__':
     my_model.load_state_dict(torch.load(model_save))
 
     # Test the model:
+    start = time.time()
     labels_list, preds_list = test_model(my_model, tst_loader, loss_criterion, model_optm, writer, device)
+    end = time.time()
+    elapsed = end - start
+
+    writer.add_text('inference_time', f'Testing is done in {str(elapsed)} seconds', 0)
+
     labels_list = np.concatenate(labels_list)
     preds_list = np.concatenate(preds_list)
 
