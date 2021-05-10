@@ -327,9 +327,9 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, min_valid_l
         del labels
 
     # Save best models to drive:
-    if min_valid_loss > epoch_loss:
+    if min_valid_loss > ep_loss_run / total_samples:
         print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{epoch_loss:.6f}) \t Saving the model.')
-        min_valid_loss = epoch_loss
+        min_valid_loss = ep_loss_run / total_samples
 
         # Saving State Dict:
         torch.save(model.state_dict(), model_save_path)
