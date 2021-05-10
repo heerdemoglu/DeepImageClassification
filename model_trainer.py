@@ -273,80 +273,68 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
         # **********************************************************************************************************
 
         # Try validation set at the end of each epoch:
-        validate_model(model, validation_loader, epochs, criterion, optimizer, min_valid_loss, sum_writer,
+        min_valid_loss = validate_model(model, validation_loader, epochs, criterion, optimizer, min_valid_loss, sum_writer,
                        model_save_path, cuda_device)
 
 
 def validate_model(model, data_loader, epochs, criterion, optimizer, min_valid_loss, sum_writer,
                    model_save_path, cuda_device=None):
     print('Starting validation procedure.')
-    # Iterate over given number of epochs:
-    for epoch in range(epochs):
-        model.eval()
-        # Iterate over all batches of the training dataset:
-        ep_loss_run = 0.0
-        epoch_correct = 0
-        total_samples = 0
-        for idx, (images, labels) in enumerate(data_loader):
-            # Send images and labels to GPU:
-            if cuda_device is not None:
-                images, labels = images.to(device), labels.to(device)
+    model.eval()
+    # Iterate over all batches of the training dataset:
+    ep_loss_run = 0.0
+    epoch_correct = 0
+    total_samples = 0
+    for idx, (images, labels) in enumerate(data_loader):
+        # Send images and labels to GPU:
+        if cuda_device is not None:
+            images, labels = images.to(device), labels.to(device)
 
-            optimizer.zero_grad()  # Clear the gradient.
+        optimizer.zero_grad()  # Clear the gradient.
 
-            # Do a forward pass on the batch:
-            outputs = model(images)  # forward pass
+        # Do a forward pass on the batch:
+        outputs = model(images)  # forward pass
 
-            # Make the predictions on the batch:
-            _, preds = torch.max(outputs, 1)  # Pull the predictions.
-            model_loss = criterion(outputs, labels)  # Compute training loss.
+        # Make the predictions on the batch:
+        _, preds = torch.max(outputs, 1)  # Pull the predictions.
+        model_loss = criterion(outputs, labels)  # Compute training loss.
 
-            ep_loss_run += model_loss.detach().item() * outputs.shape[
-                0]  # Accumulate the epoch loss (avg with batch size).
-            epoch_correct += (preds == labels).detach().sum().item()  # Accumulate number of correct class. each batch.
-            total_samples += outputs.detach().size(0)  # Count number of samples seen so far.
+        ep_loss_run += model_loss.detach().item() * outputs.shape[
+            0]  # Accumulate the epoch loss (avg with batch size).
+        epoch_correct += (preds == labels).detach().sum().item()  # Accumulate number of correct class. each batch.
+        total_samples += outputs.detach().size(0)  # Count number of samples seen so far.
 
-            # Training Statistics & Logging: ***********************************************************************
-            # At each batch record the data (both in terminal and tensorboard):
-            if (idx + 1) % outputs.shape[0] == 0:
-                now = datetime.now()
-                # dd/mm/YY H:M:S
-                dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-                print("Current Date & Time: ", dt_string, '\n')
-                print(f'Epoch [{epoch + 1}/{epochs}], '
-                      f'Step: [{idx + 1}/{len(data_loader)}], '
-                      f'Validation Loss: {model_loss.item():.4f}, '
-                      f'Validation Accuracy: {(epoch_correct / total_samples):.4f} \n'
-                      )
-                sum_writer.add_scalar('val_loss', ep_loss_run / total_samples,
-                                      epoch * outputs.shape[0] + idx + 1)
-                sum_writer.add_scalar('val_acc', (epoch_correct / total_samples),
-                                      epoch * outputs.shape[0] + idx + 1)
-            # ******************************************************************************************************
-            # Detach and remove training and validation datasets from memory.
-            images.detach()
-            del images
-            labels.detach()
-            del labels
+        # Training Statistics & Logging: ***********************************************************************
+        # At each batch record the data (both in terminal and tensorboard):
+        if (idx + 1) % outputs.shape[0] == 0:
+            now = datetime.now()
+            # dd/mm/YY H:M:S
+            dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+            print("Current Date & Time: ", dt_string)
+            print(f'Step: [{idx + 1}/{len(data_loader)}], '
+                    f'Validation Loss: {model_loss.item():.4f}, '
+                    f'Validation Accuracy: {(epoch_correct / total_samples):.4f} \n'
+                    )
+            sum_writer.add_scalar('val_loss', ep_loss_run / total_samples,
+                                    outputs.shape[0] + idx + 1)
+            sum_writer.add_scalar('val_acc', (epoch_correct / total_samples),
+                                    outputs.shape[0] + idx + 1)
+        # ******************************************************************************************************
+        # Detach and remove training and validation datasets from memory.
+        images.detach()
+        del images
+        labels.detach()
+        del labels
 
-        # Report everything at the end of each epoch: **************************************************************
-        epoch_loss = ep_loss_run / total_samples
-        epoch_acc = epoch_correct / total_samples
+    # Save best models to drive:
+    if min_valid_loss > epoch_loss:
+        print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{epoch_loss:.6f}) \t Saving the model.')
+        min_valid_loss = epoch_loss
 
-        # Save best models to drive:
-        if min_valid_loss > epoch_loss:
-            print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{epoch_loss:.6f}) \t Saving the model.')
-            min_valid_loss = epoch_loss
-
-            # Saving State Dict:
-            torch.save(model.state_dict(), model_save_path)
-
-        # Write end of epoch results & Log this to tensorboard:
-        print(f'Epoch [{epoch + 1}/{epochs}], Epoch Validation Loss: {epoch_loss:.4f},'
-              f'Epoch Validation Accuracy: {epoch_acc:.4f}')
-        sum_writer.add_scalar('epoch_val_loss', epoch_loss, epoch + 1)
-        sum_writer.add_scalar('epoch_val_acc', epoch_acc, epoch + 1)
-        # **********************************************************************************************************
+        # Saving State Dict:
+        torch.save(model.state_dict(), model_save_path)
+    # **********************************************************************************************************
+    return min_valid_loss
 
 
 def test_model(model, test_loader, criterion, optimizer, sum_writer, cuda_device=None):
@@ -407,6 +395,7 @@ def show_figure(fig):
     new_manager = dummy.canvas.manager
     new_manager.canvas.figure = fig
     fig.set_canvas(new_manager.canvas)
+
 
 
 if __name__ == '__main__':
