@@ -262,8 +262,10 @@ def train_model(model, data_loader, epochs, criterion, optimizer, sum_writer, va
         epoch_acc = epoch_correct / total_samples
 
         # Write end of epoch results & Log this to tensorboard:
-        timestamp = datetime.timestamp(datetime.now())
-        print("Current Date & Time: ", timestamp, '\n')
+        now = datetime.now()
+        # dd/mm/YY H:M:S
+        dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+        print("Current Date & Time: ", dt_string, '\n')
         print(f'Epoch [{epoch + 1}/{epochs}], Epoch Training Loss: {epoch_loss:.4f},'
               f'Epoch Training Accuracy: {epoch_acc:.4f} \n')
         sum_writer.add_scalar('epoch_trn_loss', epoch_loss, epoch + 1)
@@ -307,8 +309,10 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, min_valid_l
             # Training Statistics & Logging: ***********************************************************************
             # At each batch record the data (both in terminal and tensorboard):
             if (idx + 1) % outputs.shape[0] == 0:
-                timestamp = datetime.timestamp(datetime.now())
-                print("Current Date & Time: ", timestamp, '\n')
+                now = datetime.now()
+                # dd/mm/YY H:M:S
+                dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+                print("Current Date & Time: ", dt_string, '\n')
                 print(f'Epoch [{epoch + 1}/{epochs}], '
                       f'Step: [{idx + 1}/{len(data_loader)}], '
                       f'Validation Loss: {model_loss.item():.4f}, '
@@ -448,9 +452,11 @@ if __name__ == '__main__':
     writer = SummaryWriter(os.path.join(save_dir, os.path.join('runs', selected_model)))
 
     # Log Timestamp of start, batch size, learning rate, epochs, momentum:
-    timestamp = datetime.timestamp(datetime.now())
-    print("Current Date & Time: ", timestamp, '\n')
-    writer.add_text('start_time', f'Code started on  {timestamp}.', 0)
+    now = datetime.now()
+    # dd/mm/YY H:M:S
+    dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+    print("Current Date & Time: ", dt_string, '\n')
+    writer.add_text('start_time', f'Code started on  {dt_string}.', 0)
     writer.add_text('number_of_epochs', f'Total of {str(EPOCHS)} will be trained', 0)
     writer.add_text('batch_size', f'Batch size is {str(BATCH_SIZE)}.', 0)
     writer.add_text('learning_rate', f'Learning rate is {str(LR)}.', 0)
