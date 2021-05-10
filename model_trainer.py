@@ -328,7 +328,7 @@ def validate_model(model, data_loader, epochs, criterion, optimizer, min_valid_l
 
     # Save best models to drive:
     if min_valid_loss > ep_loss_run / total_samples:
-        print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{epoch_loss:.6f}) \t Saving the model.')
+        print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{ep_loss_run / total_samples:.6f}) \t Saving the model.')
         min_valid_loss = ep_loss_run / total_samples
 
         # Saving State Dict:
